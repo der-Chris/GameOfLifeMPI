@@ -120,37 +120,42 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
   int *myCoords = calloc(ndims, sizeof(int));
   MPI_Cart_coords(newComm, rank, ndims, myCoords);
 
+  /*
+   int *neighbourCoords = calloc(ndims, sizeof(int));
+   neighbourCoords[0] = myCoords[0] - 1;
+   int *negNeighbour = calloc (ndims, sizeof(int));
+   MPI_Cart_rank(newComm, neighbourCoords, negNeighbour);
+   int *posNeighbour = calloc (ndims, sizeof(int));
+   neighbourCoords[0] = myCoords[0] + 1;
+   MPI_Cart_rank(newComm, neighbourCoords, posNeighbour);
+   printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour[0], posNeighbour[0]);
+   */
 
-  int *neighbourCoords = calloc(ndims, sizeof(int));
-  neighbourCoords[0] = myCoords[0] - 1;
-  int *negNeighbour = calloc (ndims, sizeof(int));
-  MPI_Cart_rank(newComm, neighbourCoords, negNeighbour);
-  int *posNeighbour = calloc (ndims, sizeof(int));
-  neighbourCoords[0] = myCoords[0] + 1;
-  MPI_Cart_rank(newComm, neighbourCoords, posNeighbour);
+  int *sourceProcess = calloc (ndims, sizeof(int));
+  int *destProcess = calloc (ndims, sizeof(int));
+  MPI_Cart_shift(newComm, ndims, 1, sourceProcess, destProcess);
+  printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, sourceProcess[0], destProcess[0]);
 
+  /*
+   filling(currentfield, w, h);
+   for (int t = 0; t < timesteps; t++) {
+   // TODO consol output
+   //     show(currentfield, w, h);
+   //writeVTK(currentfield, w, h, t, "output");
+   int changes = evolve(currentfield, newfield, w, h, status, comm, rank, size);
+   if (changes == 0) {
+   sleep(3);
+   break;
+   }
 
-  printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour[0], posNeighbour[0]);
-/*
-  filling(currentfield, w, h);
-  for (int t = 0; t < timesteps; t++) {
-    // TODO consol output
-    //     show(currentfield, w, h);
-    //writeVTK(currentfield, w, h, t, "output");
-    int changes = evolve(currentfield, newfield, w, h, status, comm, rank, size);
-    if (changes == 0) {
-      sleep(3);
-      break;
-    }
+   // usleep(200000);
 
-    // usleep(200000);
-
-    //SWAP
-    unsigned *temp = currentfield;
-    currentfield = newfield;
-    newfield = temp;
-  }
- */
+   //SWAP
+   unsigned *temp = currentfield;
+   currentfield = newfield;
+   newfield = temp;
+   }
+   */
 
   free(currentfield);
   free(newfield);
@@ -177,9 +182,9 @@ int main(int c, char **v) {
   h = 1;
 
   /*
-  int posNeighbour = (rank + 1) % size;
-  int negNeighbour = (rank - 1 + size) % size;
-  printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
+   int posNeighbour = (rank + 1) % size;
+   int negNeighbour = (rank - 1 + size) % size;
+   printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
    */
   game(w, h, timesteps, status, comm, rank, size);
   

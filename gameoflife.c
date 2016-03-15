@@ -37,8 +37,8 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
     FILE* outfile = fopen(name, "w");
 
-    int tempx = beginPos[0] == 0 ? 0 : beginPos[0] - 1 * myCoords[0];
-    int tempy = beginPos[1] == 0 ? 0 : beginPos[1] - 1 * myCoords[1];
+    int tempx = (myH - 1) * myCoords[0];
+    int tempy = (myW - 1) * myCoords[1];
 
 
     /*Write vtk header */
@@ -48,7 +48,7 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     fprintf(outfile,"DATASET STRUCTURED_POINTS\n");
     fprintf(outfile,"DIMENSIONS %d %d %d \n", myW, myH, 1); //w h
     fprintf(outfile,"SPACING 1.0 1.0 1.0\n");//or ASPECT_RATIO
-    fprintf(outfile,"ORIGIN %d %d 0\n", tempx, tempy); //x y z
+    fprintf(outfile,"ORIGIN %d %d 0\n", tempy, tempx); //x y z
     fprintf(outfile,"POINT_DATA %d\n", myW * myH);
     fprintf(outfile,"SCALARS data float 1\n");
     fprintf(outfile,"LOOKUP_TABLE default\n");
@@ -115,7 +115,7 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *upperProcess
 void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
     for (int i = 0; i < myW; i = i + 1)
     {
-        sendUpperBorder[i] = currentfield[calcIndex(myW, i, myH -1)];
+        sendUpperBorder[i] = currentfield[calcIndex(myW, i, myH - 1)];
         sendLowerBorder[i] = currentfield[calcIndex(myW, i, 0)];
     }
 
@@ -218,11 +218,11 @@ int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH, int 
                             alive++;
                         }
                     } else if( y1 == myH ) {
-                        if(recvUpperBorder[y1]) {
+                        if(recvUpperBorder[x1]) {
                             alive++;
                         }
                     } else if( y1 == -1 ) {
-                        if(recvLowerBorder[y1]) {
+                        if(recvLowerBorder[x1]) {
                             alive++;
                         }
                     } else {

@@ -36,8 +36,8 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
     FILE* outfile = fopen(name, "w");
 
-    beginPos[0] = beginPos[0] == 0 ? 0 : beginPos[0] - 1 * myCoords[0];
-    beginPos[1] = beginPos[1] == 0 ? 0 : beginPos[1] - 1 * myCoords[1];
+    int tempx = beginPos[0] == 0 ? 0 : beginPos[0] - 1 * myCoords[0];
+    int tempy = beginPos[1] == 0 ? 0 : beginPos[1] - 1 * myCoords[1];
 
 
     /*Write vtk header */
@@ -47,7 +47,7 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     fprintf(outfile,"DATASET STRUCTURED_POINTS\n");
     fprintf(outfile,"DIMENSIONS %d %d %d \n", myW, myH, 1); //w h
     fprintf(outfile,"SPACING 1.0 1.0 1.0\n");//or ASPECT_RATIO
-    fprintf(outfile,"ORIGIN %d %d 0\n", beginPos[0], beginPos[1]); //x y z
+    fprintf(outfile,"ORIGIN %d %d 0\n", tempx, tempy); //x y z
     fprintf(outfile,"POINT_DATA %d\n", myW * myH);
     fprintf(outfile,"SCALARS data float 1\n");
     fprintf(outfile,"LOOKUP_TABLE default\n");
@@ -108,15 +108,14 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *upperProcess
     queryCoords[0] = myCoords[0] - 1;
     queryCoords[1] = myCoords[1] - 1;
     MPI_Cart_rank(comm, queryCoords, lowerLeftProcess);
-
     free(queryCoords);
 }
 
 void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
     for (int i = 0; i < myW; i = i + 1)
     {
-        sendUpperBorder[i] = currentfield[calcIndex(myW, i, myH -1)];
-        sendLowerBorder[i] = currentfield[calcIndex(myW, i, 0)];
+        sendUpperBorder[i] = currentfield[calcIndex(myW, i, 0)];
+        sendLowerBorder[i] = currentfield[calcIndex(myW, i, myH -1)];
     }
 
     for (int i = 0; i < myH; i = i + 1)
@@ -125,10 +124,10 @@ void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUppe
         sendLeftBorder[i] = currentfield[calcIndex(myW, 0, i)];
     }
 
-    sendUpperRightBorder[0] = currentfield[calcIndex(myW, myW - 1, myH - 1)];
-    sendUpperLeftBorder[0] = currentfield[calcIndex(myW, 0, myH - 1)];
-    sendLowerRightBorder[0] = currentfield[calcIndex(myW, myW - 1, 0)];
-    sendLowerLeftBorder[0] = currentfield[calcIndex(myW, 0, 0)];
+    sendUpperRightBorder[0] = currentfield[calcIndex(myW, myW - 1, 0)];
+    sendUpperLeftBorder[0] = currentfield[calcIndex(myW, 0, 0)];
+    sendLowerRightBorder[0] = currentfield[calcIndex(myW, myW - 1, myH -1)];
+    sendLowerLeftBorder[0] = currentfield[calcIndex(myW, 0, myH -1)];
 }
 
 void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Comm comm, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder, int *recvUpperBorder, int *recvLowerBorder, int *recvRightBorder, int *recvLeftBorder, int *recvUpperRightBorder, int *recvUpperLeftBorder, int *recvLowerRightBorder, int *recvLowerLeftBorder, int *upperProcess, int *lowerProcess, int *rightProcess, int *leftProcess, int *upperRightProcess, int *upperLeftProcess, int *lowerRightProcess, int *lowerLeftProcess) {
@@ -206,14 +205,14 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
     int *recvLowerRightBorder = calloc(1, sizeof(unsigned));
     int *recvLowerLeftBorder = calloc(1, sizeof(unsigned));
 
-    int *upperProcess= calloc (1, sizeof(int));
-    int *lowerProcess= calloc (1, sizeof(int));
-    int *rightProcess= calloc (1, sizeof(int));
-    int *leftProcess= calloc (1, sizeof(int));
-    int *upperRightProcess= calloc (1, sizeof(int));
-    int *upperLeftProcess= calloc (1, sizeof(int));
-    int *lowerRightProcess= calloc (1, sizeof(int));
-    int *lowerLeftProcess= calloc (1, sizeof(int));
+    int *upperProcess = calloc (1, sizeof(int));
+    int *lowerProcess = calloc (1, sizeof(int));
+    int *rightProcess = calloc (1, sizeof(int));
+    int *leftProcess = calloc (1, sizeof(int));
+    int *upperRightProcess = calloc (1, sizeof(int));
+    int *upperLeftProcess = calloc (1, sizeof(int));
+    int *lowerRightProcess = calloc (1, sizeof(int));
+    int *lowerLeftProcess = calloc (1, sizeof(int));
 
     calculateNeighbourProcesses(myCoords, comm, upperProcess, lowerProcess, rightProcess, leftProcess, upperRightProcess, upperLeftProcess, lowerRightProcess, lowerLeftProcess);
 
@@ -222,40 +221,72 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
     calculateNeighbourBorders(currentfield, myW, myH, comm, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder, upperProcess, lowerProcess, rightProcess, leftProcess, upperRightProcess, upperLeftProcess, lowerRightProcess, lowerLeftProcess);
 
 
+    for (int y = 0; y < myH; y++) {
+        for (int x = 0; x < myW; x++) {
+            int alive = 0;
+            //for schleifen ersetzen durch 8 statische berechnungen?
+            for(int y1 = y-1; y1 <= y+1; y1++) {
+                for(int x1 = x-1; x1 <= x+1; x1++) {
 
-    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d] & [%d] and: [%d]\n",rank, size, sourceProcessH[0], destProcessH[0], sourceProcessV[0], destProcessV[0]);
 
-    /*
-     for (int y = 0; y < h; y++) {
-     for (int x = 0; x < w; x++) {
-     */
-    //TODO add game of life rules
+                    if( x1 == -1 && y1 == -1 ){
+                        if(recvLowerLeftBorder[0]) alive++;
+                    } else if( x1 == myW && y1 == myW ){
+                        if(recvUpperRightBorder[0]) alive++;
+                    } else if( x1 == -1 ){
+                        if(recvLeftBorder[y1]) alive++;
+                    } else if( x1 == myW ){
+                        if(recvRightBorder[y1]) alive++;
+                    } else if( y1 == -1 ){
+                        if(recvLowerBorder[y1]) alive++;
+                    } else if( y1 == myH ){
+                        if(recvUpperBorder[y1]) alive++;
+                    } else {
+                        if(currentfield[calcIndex(w, x1, (y1 + h)%h)]){
+                            alive++;
+                        }
+                    }
 
-/*
-    printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
-    printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, upperBorder[0], upperBorder[1], upperBorder[2], upperBorder[3]);
+                }
+            }
 
-    //Send Right Border -> receive Left Border
-    sendcount = myH;
-    dest = (rank + 1) % size;
-    recvcount = myW;
-    source = (rank + size - 1) % size;
-    for (int i = 0; i < myH; i = i + 1)
-    {
-        sendbuf[i] = currentfield[calcIndex(myW, myW - 1, i)];
+            //remove inner cell value
+            alive -= currentfield[calcIndex(myW, x,y)];
+            newfield[calcIndex(myW, x,y)] = (alive == 3 || (alive == 2 && currentfield[calcIndex(myW, x,y)]));
+            if(currentfield[calcIndex(myW, x,y)] != newfield[calcIndex(myW, x,y)])
+            {
+                changes = 1;
+            }
+        }
     }
-    MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, leftBorder, recvcount, recvtype, source, recvtag, comm, &status);
-    //Send Left Border -> receive Right Border
-    dest = (rank + size - 1) % size;
-    source = (rank + 1) % size;
-    for (int i = 0; i < myW; i = i + 1)
-    {
-        sendbuf[i] = currentfield[calcIndex(myW, 0, i)];
-    }
-    MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, rightBoder, recvcount, recvtype, source, recvtag, comm, &status);
-    printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
-    printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, rightBoder[0], rightBoder[1], rightBoder[2], rightBoder[3]);
-*/
+
+    free(sendUpperBorder);
+    free(sendLowerBorder);
+    free(sendRightBorder);
+    free(sendLeftBorder);
+    free(sendUpperRightBorder);
+    free(sendUpperLeftBorder);
+    free(sendLowerRightBorder);
+    free(sendLowerLeftBorder);
+
+    free(recvLowerBorder);
+    free(recvUpperBorder);
+    free(recvRightBorder);
+    free(recvLeftBorder);
+    free(recvUpperRightBorder);
+    free(recvUpperLeftBorder);
+    free(recvLowerRightBorder);
+    free(recvLowerLeftBorder);
+
+    free(upperProcess);
+    free(lowerProcess);
+    free(rightProcess);
+    free(leftProcess);
+    free(upperRightProcess);
+    free(upperLeftProcess);
+    free(lowerRightProcess);
+    free(lowerLeftProcess);
+
     //TODO if changes == 0, the time loop will not run!
     return changes;
 }
@@ -294,39 +325,37 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     int myH = h / 2;
     printf("DEBUG: Thread No: [%d] My Cart Coords are [%d] [%d] My starting Coords are [%d] [%d] and My ending Coords are [%d] [%d]\n",rank, myCoords[0], myCoords[1], beginPos[0], beginPos[1], endPos[0], endPos[1]);
 
-    //int beginPos = myCoords[0] * w;
-    //int endPos = (myCoords[0] + 1) * w - 1;
-
-    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. Width is [%d] and Height is [%d]\n",rank, size, sourceProcess[0], destProcess[0], w, h);
-    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. My first Coordinate is [%d] and my last Coordinate is [%d]\n",rank, size, sourceProcess[0], destProcess[0], beginPos, endPos);
-
-
     unsigned *currentfield = calloc(myW * myH, sizeof(unsigned));
     unsigned *newfield = calloc(myW * myH, sizeof(unsigned));
 
-
     filling(currentfield, myW, myH);
-    int t = 0;
-    //for (int t = 0; t < timesteps; t++) {
-    // TODO consol output
-    //     show(currentfield, w, h);
-    writeVTK(currentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
 
-     int changes = evolve(currentfield, newfield, w, h, status, newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
-    /*
-     if (changes == 0) {
-     sleep(3);
-     break;
-     }
+    for (int t = 0; t < timesteps; t++) {
+        // TODO consol output
+        //     show(currentfield, w, h);
+        writeVTK(currentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
 
-     // usleep(200000);
 
-     //SWAP
-     unsigned *temp = currentfield;
-     currentfield = newfield;
-     newfield = temp;
-     }
-     */
+        int changes = evolve(currentfield, newfield, w, h, status, newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
+
+        int allchanges = changes;
+        // printf("Changes of Thread %d is %d\n", rank, changes);
+        MPI_Allreduce(&changes, &allchanges, 1, MPI_INT, MPI_SUM, comm);
+        // printf("Changes of all Threads is %d\n", allchanges);
+        if (allchanges == 0) {
+            sleep(3);
+            break;
+        }
+
+
+        // usleep(200000);
+
+        //SWAP
+        unsigned *temp = currentfield;
+        currentfield = newfield;
+        newfield = temp;
+        printf("timestamp: [%d]\n", t);
+    }
 
     free(currentfield);
     free(newfield);
@@ -351,8 +380,8 @@ int main(int c, char **v) {
     /*
      int length = w * h;
      w = (length / size) * (rank + 1);
-     
-     
+
+
      int posNeighbour = (rank + 1) % size;
      int negNeighbour = (rank - 1 + size) % size;
      printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#

@@ -54,7 +54,7 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
 
     for (int y = 0; y < myH; y++) {
         for (int x = 0; x < myW; x++) {
-            float value = currentfield[calcIndex(w, x,y)] != 0.0 ? 1.0:0.0;
+            float value = currentfield[calcIndex(myW, x,y)]; //!= 0.0 ? 1.0:0.0;
             value = convert2BigEndian(value);
             fwrite(&value, 1, sizeof(float), outfile);
         }
@@ -114,8 +114,8 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *upperProcess
 void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
     for (int i = 0; i < myW; i = i + 1)
     {
-        sendUpperBorder[i] = currentfield[calcIndex(myW, i, 0)];
-        sendLowerBorder[i] = currentfield[calcIndex(myW, i, myH -1)];
+        sendUpperBorder[i] = currentfield[calcIndex(myW, i, myH -1)];
+        sendLowerBorder[i] = currentfield[calcIndex(myW, i, 0)];
     }
 
     for (int i = 0; i < myH; i = i + 1)
@@ -220,15 +220,12 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
 
     calculateNeighbourBorders(currentfield, myW, myH, comm, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder, upperProcess, lowerProcess, rightProcess, leftProcess, upperRightProcess, upperLeftProcess, lowerRightProcess, lowerLeftProcess);
 
-
     for (int y = 0; y < myH; y++) {
         for (int x = 0; x < myW; x++) {
             int alive = 0;
             //for schleifen ersetzen durch 8 statische berechnungen?
             for(int y1 = y-1; y1 <= y+1; y1++) {
                 for(int x1 = x-1; x1 <= x+1; x1++) {
-
-
                     if( x1 == -1 && y1 == -1 )
                     {
                         if(recvUpperLeftBorder[0])
@@ -415,12 +412,12 @@ int main(int c, char **v) {
     MPI_Comm_size(comm, &size);
     MPI_Comm_rank(comm, &rank);
 
-    int w = 0, h = 0, timesteps = 10;
+    int w = 0, h = 0, timesteps = 100;
     if (c > 1) w = atoi(v[1]); ///< read width
     if (c > 2) h = atoi(v[2]); ///< read height
     if (c > 3) timesteps = atoi(v[3]);
-    if (w <= 0) w = 40; ///< default width
-    if (h <= 0) h = 40; ///< default height
+    if (w <= 0) w = 100; ///< default width
+    if (h <= 0) h = 100; ///< default height
 
     /*
      int length = w * h;
@@ -432,7 +429,7 @@ int main(int c, char **v) {
      printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
      */
     game(w, h, timesteps, status, comm, rank, size);
-
+    
     MPI_Finalize();
     return 0;
 }

@@ -112,7 +112,11 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *upperProcess
     free(queryCoords);
 }
 
-void calculateBorders(unsigned *currentfield, int myW, int myH, int *upperBorder, int *lowerBorder, int *rightBorder, int *leftBorder, int *upperRightBorder, int *upperLeftBorder, int *lowerRightBorder, int *lowerLeftBorder) {
+void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *upperBorder, int *lowerBorder, int *rightBorder, int *leftBorder, int *upperRightBorder, int *upperLeftBorder, int *lowerRightBorder, int *lowerLeftBorder) {
+
+}
+
+void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, int *recvUpperBorder, int *recvLowerBorder, int *recvRightBorder, int *recvLeftBorder, int *recvUpperRightBorder, int *recvUpperLeftBorder, int *recvLowerRightBorder, int *recvLowerLeftBorder, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
 
 }
 
@@ -120,23 +124,23 @@ void calculateBorders(unsigned *currentfield, int myW, int myH, int *upperBorder
 int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status status, MPI_Comm comm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
     int changes = 0;
 
-    int *lowerBorder = calloc(myW, sizeof(unsigned));
-    int *upperBorder = calloc(myW, sizeof(unsigned));
-    int *rightBoder = calloc(myH, sizeof(unsigned));
-    int *leftBorder = calloc(myH, sizeof(unsigned));
-    int *upperRightBorder = calloc(1, sizeof(unsigned));
-    int *upperLeftBorder = calloc(1, sizeof(unsigned));
-    int *lowerRightBorder = calloc(1, sizeof(unsigned));
-    int *lowerLeftBorder = calloc(1, sizeof(unsigned));
+    int *sendUpperBorder = calloc(myW, sizeof(unsigned));
+    int *sendLowerBorder = calloc(myW, sizeof(unsigned));
+    int *sendRightBorder = calloc(myH, sizeof(unsigned));
+    int *sendLeftBorder = calloc(myH, sizeof(unsigned));
+    int *sendUpperRightBorder = calloc(1, sizeof(unsigned));
+    int *sendUpperLeftBorder = calloc(1, sizeof(unsigned));
+    int *sendLowerRightBorder = calloc(1, sizeof(unsigned));
+    int *sendLowerLeftBorder = calloc(1, sizeof(unsigned));
 
-    int *lowerBorder = calloc(myW, sizeof(unsigned));
-    int *upperBorder = calloc(myW, sizeof(unsigned));
-    int *rightBoder = calloc(myH, sizeof(unsigned));
-    int *leftBorder = calloc(myH, sizeof(unsigned));
-    int *upperRightBorder = calloc(1, sizeof(unsigned));
-    int *upperLeftBorder = calloc(1, sizeof(unsigned));
-    int *lowerRightBorder = calloc(1, sizeof(unsigned));
-    int *lowerLeftBorder = calloc(1, sizeof(unsigned));
+    int *recvLowerBorder = calloc(myW, sizeof(unsigned));
+    int *recvUpperBorder = calloc(myW, sizeof(unsigned));
+    int *recvRightBorder = calloc(myH, sizeof(unsigned));
+    int *recvLeftBorder = calloc(myH, sizeof(unsigned));
+    int *recvUpperRightBorder = calloc(1, sizeof(unsigned));
+    int *recvUpperLeftBorder = calloc(1, sizeof(unsigned));
+    int *recvLowerRightBorder = calloc(1, sizeof(unsigned));
+    int *recvLowerLeftBorder = calloc(1, sizeof(unsigned));
 
     int *upperProcess= calloc (1, sizeof(int));
     int *lowerProcess= calloc (1, sizeof(int));
@@ -149,7 +153,9 @@ int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status 
 
     calculateNeighbourProcesses(myCoords, comm, upperProcess, lowerProcess, rightProcess, leftProcess, upperRightProcess, upperLeftProcess, lowerRightProcess, lowerLeftProcess);
 
-    calculateBorders(currentfield, myW, myH, upperBorder, lowerBorder, rightBorder, leftBorder, upperRightBorder, upperLeftBorder, lowerRightBorder, lowerLeftBorder);
+    calculateOwnBorders(currentfield, myW, myH, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder);
+
+    calculateNeighbourBorders(currentfield, myW, myH, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder);
 
 
 

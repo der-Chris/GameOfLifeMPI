@@ -112,16 +112,80 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *upperProcess
     free(queryCoords);
 }
 
-void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *upperBorder, int *lowerBorder, int *rightBorder, int *leftBorder, int *upperRightBorder, int *upperLeftBorder, int *lowerRightBorder, int *lowerLeftBorder) {
+void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
+    for (int i = 0; i < myW; i = i + 1)
+    {
+        sendUpperBorder[i] = currentfield[calcIndex(myW, i, myH -1)];
+        sendLowerBorder[i] = currentfield[calcIndex(myW, i, 0)];
+    }
 
+    for (int i = 0; i < myH; i = i + 1)
+    {
+        sendRightBorder[i] = currentfield[calcIndex(myW, myW - 1, i)];
+        sendLeftBorder[i] = currentfield[calcIndex(myW, 0, i)];
+    }
+
+    sendUpperRightBorder[0] = currentfield[calcIndex(myW, myW - 1, myH - 1)];
+    sendUpperLeftBorder[0] = currentfield[calcIndex(myW, 0, myH - 1)];
+    sendLowerRightBorder[0] = currentfield[calcIndex(myW, myW - 1, 0)];
+    sendLowerLeftBorder[0] = currentfield[calcIndex(myW, 0, 0)];
 }
 
-void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, int *recvUpperBorder, int *recvLowerBorder, int *recvRightBorder, int *recvLeftBorder, int *recvUpperRightBorder, int *recvUpperLeftBorder, int *recvLowerRightBorder, int *recvLowerLeftBorder, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
+void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Comm comm, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder, int *recvUpperBorder, int *recvLowerBorder, int *recvRightBorder, int *recvLeftBorder, int *recvUpperRightBorder, int *recvUpperLeftBorder, int *recvLowerRightBorder, int *recvLowerLeftBorder, int *upperProcess, int *lowerProcess, int *rightProcess, int *leftProcess, int *upperRightProcess, int *upperLeftProcess, int *lowerRightProcess, int *lowerLeftProcess) {
+    MPI_Status status;
 
+    //Send Upper Border -> receive lower Border
+    int sendcount = myW;
+    MPI_Datatype sendtype = MPI_UNSIGNED;
+    int dest = upperProcess[0];
+    int sendtag = 1;
+    int recvcount = myW;
+    MPI_Datatype recvtype = MPI_UNSIGNED;
+    int source = lowerProcess[0];
+    int recvtag = 1;
+    MPI_Sendrecv(sendUpperBorder, sendcount, sendtype, dest, sendtag, recvLowerBorder, recvcount, recvtype, source, recvtag, comm, &status);
+    //Send Lower Border -> receive Upper Border
+    dest = lowerProcess[0];
+    source = upperProcess[0];
+    MPI_Sendrecv(sendLowerBorder, sendcount, sendtype, dest, sendtag, recvUpperBorder, recvcount, recvtype, source, recvtag, comm, &status);
+
+    //Send Right Border -> receive Left Border
+    sendcount = myH;
+    dest = rightProcess[0];
+    recvcount = myW;
+    source = leftProcess[0];
+    MPI_Sendrecv(sendRightBorder, sendcount, sendtype, dest, sendtag, recvLeftBorder, recvcount, recvtype, source, recvtag, comm, &status);
+    //Send Left Border -> receive Right Border
+    dest = leftProcess[0];
+    source = rightProcess[0];
+    MPI_Sendrecv(sendLeftBorder, sendcount, sendtype, dest, sendtag, recvRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
+
+
+    //Send Upper Right Border -> receive Upper Left Border
+    sendcount = 1;
+    dest = upperRightProcess[0];
+    recvcount = 1;
+    source = upperLeftProcess[0];
+    MPI_Sendrecv(sendRightBorder, sendcount, sendtype, dest, sendtag, recvLeftBorder, recvcount, recvtype, source, recvtag, comm, &status);
+    //Send Upper Left Border -> receive Upper Right Border
+    dest = upperLeftProcess[0];
+    source = upperRightProcess[0];
+    MPI_Sendrecv(sendLeftBorder, sendcount, sendtype, dest, sendtag, recvRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
+
+    //Send Lower Right Border -> receive Lower Left Border
+    sendcount = 1;
+    dest = lowerRightProcess[0];
+    recvcount = 1;
+    source = lowerLeftProcess[0];
+    MPI_Sendrecv(sendRightBorder, sendcount, sendtype, dest, sendtag, recvLeftBorder, recvcount, recvtype, source, recvtag, comm, &status);
+    //Send Lower Left Border -> receive Lower Right Border
+    dest = lowerLeftProcess[0];
+    source = lowerRightProcess[0];
+    MPI_Sendrecv(sendLeftBorder, sendcount, sendtype, dest, sendtag, recvRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
 }
 
 
-int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status status, MPI_Comm comm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
+int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status status, MPI_Comm comm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
     int changes = 0;
 
     int *sendUpperBorder = calloc(myW, sizeof(unsigned));
@@ -155,7 +219,7 @@ int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status 
 
     calculateOwnBorders(currentfield, myW, myH, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder);
 
-    calculateNeighbourBorders(currentfield, myW, myH, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder);
+    calculateNeighbourBorders(currentfield, myW, myH, comm, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder, upperProcess, lowerProcess, rightProcess, leftProcess, upperRightProcess, upperLeftProcess, lowerRightProcess, lowerLeftProcess);
 
 
 
@@ -167,29 +231,7 @@ int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status 
      */
     //TODO add game of life rules
 
-    //Send Upper Border -> receive lower Border
-    int sendcount = myW;
-    int *sendbuf = calloc(sendcount, sizeof(unsigned));;
-    MPI_Datatype sendtype = MPI_UNSIGNED;
-    int dest = (rank + 1) % size;
-    int sendtag = 1;
-    int recvcount = myW;
-    MPI_Datatype recvtype = MPI_UNSIGNED;
-    int source = (rank + size - 1) % size;
-    int recvtag = 1;
-    for (int i = 0; i < myW; i = i + 1)
-    {
-        sendbuf[i] = currentfield[calcIndex(myW, i, myH - 1)];
-    }
-    MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, lowerBorder, recvcount, recvtype, source, recvtag, comm, &status);
-    //Send Lower Border -> receive Upper Border
-    dest = (rank + size - 1) % size;
-    source = (rank + 1) % size;
-    for (int i = 0; i < myW; i = i + 1)
-    {
-        sendbuf[i] = currentfield[calcIndex(myW, i, 0)];
-    }
-    MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, upperBorder, recvcount, recvtype, source, recvtag, comm, &status);
+/*
     printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
     printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, upperBorder[0], upperBorder[1], upperBorder[2], upperBorder[3]);
 
@@ -213,7 +255,7 @@ int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status 
     MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, rightBoder, recvcount, recvtype, source, recvtag, comm, &status);
     printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
     printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, rightBoder[0], rightBoder[1], rightBoder[2], rightBoder[3]);
-
+*/
     //TODO if changes == 0, the time loop will not run!
     return changes;
 }

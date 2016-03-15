@@ -16,7 +16,6 @@ void show(unsigned* currentfield, int w, int h) {
     fflush(stdout);
 }
 
-
 float convert2BigEndian( const float inFloat )
 {
     float retVal;
@@ -31,15 +30,14 @@ float convert2BigEndian( const float inFloat )
 
     return retVal;
 }
-//myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH
+
 void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Comm newComm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
     char name[1024] = "\0";
     sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
-    FILE* outfile = fopen(name, "w");
+    FILE *outfile = fopen(name, "w");
 
-    int tempx = (myH - 1) * myCoords[0];
-    int tempy = (myW - 1) * myCoords[1];
-
+    int tempy = (myH - 1) * myCoords[0];
+    int tempx = (myW - 1) * myCoords[1];
 
     /*Write vtk header */
     fprintf(outfile,"# vtk DataFile Version 3.0\n");
@@ -48,7 +46,7 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     fprintf(outfile,"DATASET STRUCTURED_POINTS\n");
     fprintf(outfile,"DIMENSIONS %d %d %d \n", myW, myH, 1); //w h
     fprintf(outfile,"SPACING 1.0 1.0 1.0\n");//or ASPECT_RATIO
-    fprintf(outfile,"ORIGIN %d %d 0\n", tempy, tempx); //x y z
+    fprintf(outfile,"ORIGIN %d %d 0\n", tempx, tempy); //x y z
     fprintf(outfile,"POINT_DATA %d\n", myW * myH);
     fprintf(outfile,"SCALARS data float 1\n");
     fprintf(outfile,"LOOKUP_TABLE default\n");
@@ -159,7 +157,6 @@ void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Com
     dest = leftProcess[0];
     source = rightProcess[0];
     MPI_Sendrecv(sendLeftBorder, sendcount, sendtype, dest, sendtag, recvRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
-
 
     //Send Upper Right Border -> receive Upper Left Border
     sendcount = 1;
@@ -325,7 +322,6 @@ void filling(unsigned* currentfield, int w, int h, int rank) {
 
 void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int rank, int size) {
 
-    //Aufgabe B
     MPI_Comm newComm;
     int ndims = 2;
     int *dims = calloc(ndims, sizeof(unsigned));
@@ -337,7 +333,6 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     int reorder = 0;
 
     MPI_Cart_create(comm, ndims, dims, periods, reorder, &newComm);
-
     int *myCoords = calloc(ndims, sizeof(int));
     MPI_Cart_coords(newComm, rank, ndims, myCoords);
 
@@ -357,31 +352,26 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     filling(currentfield, myW, myH, rank);
 
     for (int t = 0; t < timesteps; t++) {
-        // TODO consol output
-        //     show(currentfield, w, h);
         writeVTK(currentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
 
-
         int changes = evolve(currentfield, newfield, w, h, status, newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
-
         int allchanges = changes;
-        // printf("Changes of Thread %d is %d\n", rank, changes);
         MPI_Allreduce(&changes, &allchanges, 1, MPI_INT, MPI_SUM, comm);
-        // printf("Changes of all Threads is %d\n", allchanges);
         if (allchanges == 0) {
             sleep(3);
             break;
         }
-
-
-        // usleep(200000);
-
         //SWAP
         unsigned *temp = currentfield;
         currentfield = newfield;
         newfield = temp;
     }
 
+    free(dims);
+    free(periods);
+    free(myCoords);
+    free(beginPos);
+    free(endPos);
     free(currentfield);
     free(newfield);
 }
@@ -402,15 +392,7 @@ int main(int c, char **v) {
     if (w <= 0) w = 1000; ///< default width
     if (h <= 0) h = 1000; ///< default height
 
-    /*
-     int length = w * h;
-     w = (length / size) * (rank + 1);
-
-
-     int posNeighbour = (rank + 1) % size;
-     int negNeighbour = (rank - 1 + size) % size;
-     printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
-     */
+//    printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
     game(w, h, timesteps, status, comm, rank, size);
     
     MPI_Finalize();

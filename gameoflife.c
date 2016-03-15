@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <endian.h>
 #include <mpi.h>
+#include <time.h>
 
 #define calcIndex(width, x,y)  ((y)*(width) + (x))
 
@@ -151,7 +152,7 @@ void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Com
     //Send Right Border -> receive Left Border
     sendcount = myH;
     dest = rightProcess[0];
-    recvcount = myW;
+    recvcount = myH;
     source = leftProcess[0];
     MPI_Sendrecv(sendRightBorder, sendcount, sendtype, dest, sendtag, recvLeftBorder, recvcount, recvtype, source, recvtag, comm, &status);
     //Send Left Border -> receive Right Border
@@ -314,7 +315,9 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
     return changes;
 }
 
-void filling(unsigned* currentfield, int w, int h) {
+void filling(unsigned* currentfield, int w, int h, int rank) {
+    clock_t t = time(NULL);
+    srand((int) t * rank);
     for (int i = 0; i < h*w; i++) {
         currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
     }
@@ -351,7 +354,7 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     unsigned *currentfield = calloc(myW * myH, sizeof(unsigned));
     unsigned *newfield = calloc(myW * myH, sizeof(unsigned));
 
-    filling(currentfield, myW, myH);
+    filling(currentfield, myW, myH, rank);
 
     for (int t = 0; t < timesteps; t++) {
         // TODO consol output
@@ -392,12 +395,12 @@ int main(int c, char **v) {
     MPI_Comm_size(comm, &size);
     MPI_Comm_rank(comm, &rank);
 
-    int w = 0, h = 0, timesteps = 200;
+    int w = 0, h = 0, timesteps = 400;
     if (c > 1) w = atoi(v[1]); ///< read width
     if (c > 2) h = atoi(v[2]); ///< read height
     if (c > 3) timesteps = atoi(v[3]);
-    if (w <= 0) w = 400; ///< default width
-    if (h <= 0) h = 400; ///< default height
+    if (w <= 0) w = 1000; ///< default width
+    if (h <= 0) h = 1000; ///< default height
 
     /*
      int length = w * h;

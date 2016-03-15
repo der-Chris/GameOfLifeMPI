@@ -17,7 +17,7 @@ $(TARGET): $(TARGET).c
 
 
 run: all
-	mpirun -n 4 ./$(TARGET)
+	mpirun -n 6 ./$(TARGET)
 	
 clean:
 	$(RM) $(TARGET)

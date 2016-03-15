@@ -32,10 +32,13 @@ float convert2BigEndian( const float inFloat )
     return retVal;
 }
 
-void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix) {
+void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Comm comm, int rank, int size, int *myCoords) {
     char name[1024] = "\0";
-    sprintf(name, "out/%s_%d.vtk", prefix, t);
+    sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
     FILE* outfile = fopen(name, "w");
+
+    int tempy = (h - 1) * myCoords[0];
+    int tempx = (w - 1) * myCoords[1];
 
     /*Write vtk header */
     fprintf(outfile,"# vtk DataFile Version 3.0\n");
@@ -44,7 +47,7 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix) {
     fprintf(outfile,"DATASET STRUCTURED_POINTS\n");
     fprintf(outfile,"DIMENSIONS %d %d %d \n", w, h, 1);
     fprintf(outfile,"SPACING 1.0 1.0 1.0\n");//or ASPECT_RATIO
-    fprintf(outfile,"ORIGIN 0 0 0\n");
+    fprintf(outfile,"ORIGIN %d %d 0\n", tempx, tempy);
     fprintf(outfile,"POINT_DATA %d\n", h*w);
     fprintf(outfile,"SCALARS data float 1\n");
     fprintf(outfile,"LOOKUP_TABLE default\n");
@@ -133,10 +136,11 @@ void game(int w, int h, int timesteps, int rank, int size, MPI_Comm comm, MPI_St
     printf("DEBUG: Hello, my ID is [%d],  my right neighbours ID is [%d] my left neighbours ID is [%d]\n", rank, rightProcess[0], leftProcess[0]);
 
     filling(currentfield, w, h, rank);
-    /*
-     for (int t = 0; t < timesteps; t++) {
 
-     writeVTK(currentfield, w, h, t, "output");
+    //     for (int t = 0; t < timesteps; t++) {
+    int t = 0;
+    writeVTK(currentfield, w, h, t, "output", newComm, rank, size, myCoords);
+    /*
      int changes = evolve(currentfield, newfield, w, h);
      if (changes == 0) {
      sleep(3);

@@ -76,26 +76,44 @@ int getNumberOfAliveCells(unsigned* currentfield, int w, int h, int x, int y) {
 
 
 
-int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status status, MPI_Comm comm, int rank, int size) {
+int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status status, MPI_Comm comm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
     int changes = 0;
+
+
+    int *sourceProcessH = calloc (1, sizeof(int));
+    int *destProcessH = calloc (1, sizeof(int));
+    MPI_Cart_shift(comm, 0, 1, sourceProcessH, destProcessH); //int MPI_Cart_shift(MPI_Comm comm, int direction, int disp, int *rank_source, int *rank_dest)
+    int *sourceProcessV = calloc (1, sizeof(int));
+    int *destProcessV = calloc (1, sizeof(int));
+    MPI_Cart_shift(comm, 1, 1, sourceProcessV, destProcessV);
+    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d] & [%d] and: [%d]\n",rank, size, sourceProcessH[0], destProcessH[0], sourceProcessV[0], destProcessV[0]);
+
     /*
      for (int y = 0; y < h; y++) {
      for (int x = 0; x < w; x++) {
      */
     //TODO add game of life rules
 
-    int sendcount = 1;
+    int sendcount = myW;
     int *sendbuf = calloc(sendcount, sizeof(unsigned));;
+    for (int i = 0; i < myW; i = i + 1)
+    {
+        sendbuf[i] = currentfield[calcIndex(myW, i, myH - 1)];
+    }
     MPI_Datatype sendtype = MPI_UNSIGNED;
     int dest = (rank + 1) % size;
     int sendtag = 1;
+    printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
 
-    int recvcount = 1;
+
+    int recvcount = myW;
     int *recvbuf = calloc(recvcount, sizeof(unsigned));
     MPI_Datatype recvtype = MPI_UNSIGNED;
     int source = (rank + size - 1) % size;
-    int recvtag = 2;
+    int recvtag = 1;
     MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, &status);
+    printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, recvbuf[0], recvbuf[1], recvbuf[2], recvbuf[3]);
+
 
     //TODO if changes == 0, the time loop will not run!
     return changes;
@@ -125,14 +143,6 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     int *myCoords = calloc(ndims, sizeof(int));
     MPI_Cart_coords(newComm, rank, ndims, myCoords);
 
-    int *sourceProcessH = calloc (1, sizeof(int));
-    int *destProcessH = calloc (1, sizeof(int));
-    MPI_Cart_shift(newComm, 0, 1, sourceProcessH, destProcessH); //int MPI_Cart_shift(MPI_Comm comm, int direction, int disp, int *rank_source, int *rank_dest)
-    int *sourceProcessV = calloc (1, sizeof(int));
-    int *destProcessV = calloc (1, sizeof(int));
-    MPI_Cart_shift(newComm, 1, 1, sourceProcessV, destProcessV);
-    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d] & [%d] and: [%d]\n",rank, size, sourceProcessH[0], destProcessH[0], sourceProcessV[0], destProcessV[0]);
-
     int *beginPos = calloc(ndims, sizeof(int));
     int *endPos = calloc(ndims, sizeof(int));
     beginPos[0] = (h / 2) * myCoords[0];
@@ -150,18 +160,19 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. My first Coordinate is [%d] and my last Coordinate is [%d]\n",rank, size, sourceProcess[0], destProcess[0], beginPos, endPos);
 
 
-    unsigned *myCurrentfield = calloc(myW * myH, sizeof(unsigned));
-    unsigned *myNewfield = calloc(myW * myH, sizeof(unsigned));
+    unsigned *currentfield = calloc(myW * myH, sizeof(unsigned));
+    unsigned *newfield = calloc(myW * myH, sizeof(unsigned));
 
 
-    filling(myCurrentfield, myW, myH);
+    filling(currentfield, myW, myH);
     int t = 0;
     //for (int t = 0; t < timesteps; t++) {
     // TODO consol output
     //     show(currentfield, w, h);
-    writeVTK(myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
+    writeVTK(currentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
+
+     int changes = evolve(currentfield, newfield, w, h, status, newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
     /*
-     int changes = evolve(currentfield, newfield, w, h, status, comm, rank, size);
      if (changes == 0) {
      sleep(3);
      break;
@@ -176,8 +187,8 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
      }
      */
 
-    free(myCurrentfield);
-    free(myNewfield);
+    free(currentfield);
+    free(newfield);
 }
 
 int main(int c, char **v) {
@@ -193,8 +204,8 @@ int main(int c, char **v) {
     if (c > 1) w = atoi(v[1]); ///< read width
     if (c > 2) h = atoi(v[2]); ///< read height
     if (c > 3) timesteps = atoi(v[3]);
-    if (w <= 0) w = 8; ///< default width
-    if (h <= 0) h = 8; ///< default height
+    if (w <= 0) w = 40; ///< default width
+    if (h <= 0) h = 40; ///< default height
 
     /*
      int length = w * h;

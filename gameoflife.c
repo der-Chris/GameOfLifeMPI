@@ -36,7 +36,7 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
     FILE* outfile = fopen(name, "w");
 
-    beginPos = beginPos == 0 ? 0 : beginPos - 1;
+    beginPos = beginPos == 0 ? 0 : beginPos - 1 * rank;
 
     /*Write vtk header */
     fprintf(outfile,"# vtk DataFile Version 3.0\n");
@@ -109,39 +109,56 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
 
     //Aufgabe B
     MPI_Comm newComm;
-    int ndims = 1;
+    int ndims = 2;
     int *dims = calloc(ndims, sizeof(unsigned));
-    dims[0] = size;
+    dims[0] = 2;
+    dims[1] = size / 2;
     int *periods = calloc(ndims, sizeof(int));
     periods[0] = 1;
-    int reorder = 1;
+    periods[1] = 1;
+    int reorder = 0;
 
     MPI_Cart_create(comm, ndims, dims, periods, reorder, &newComm);
 
     int *myCoords = calloc(ndims, sizeof(int));
     MPI_Cart_coords(newComm, rank, ndims, myCoords);
 
-    int *sourceProcess = calloc (ndims, sizeof(int));
-    int *destProcess = calloc (ndims, sizeof(int));
-    MPI_Cart_shift(newComm, ndims, 1, sourceProcess, destProcess);
-    w = w / size;
+    int *sourceProcessH = calloc (1, sizeof(int));
+    int *destProcessH = calloc (1, sizeof(int));
+    MPI_Cart_shift(newComm, 0, 1, sourceProcessH, destProcessH); //int MPI_Cart_shift(MPI_Comm comm, int direction, int disp, int *rank_source, int *rank_dest)
+    int *sourceProcessV = calloc (1, sizeof(int));
+    int *destProcessV = calloc (1, sizeof(int));
+    MPI_Cart_shift(newComm, 1, 1, sourceProcessV, destProcessV);
+    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d] & [%d] and: [%d]\n",rank, size, sourceProcessH[0], destProcessH[0], sourceProcessV[0], destProcessV[0]);
 
-    int beginPos = myCoords[0] * w;
-    int endPos = (myCoords[0] + 1) * w - 1;
-    printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. Width is [%d] and Height is [%d]\n",rank, size, sourceProcess[0], destProcess[0], w, h);
-    printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. My first Coordinate is [%d] and my last Coordinate is [%d]\n",rank, size, sourceProcess[0], destProcess[0], beginPos, endPos);
+    int *beginPos = calloc(ndims, sizeof(int));
+    int *endPos = calloc(ndims, sizeof(int));
+    beginPos[0] = (h / 2) * myCoords[0];
+    beginPos[1] = (w / (size / 2)) * myCoords[1];
+    endPos[0] = ((h / 2) * (myCoords[0] + 1)) - 1;
+    endPos[1] = ((w / (size / 2)) * (myCoords[1] + 1)) - 1;
+    printf("DEBUG: Thread No: [%d] My Cart Coords are [%d] [%d] My starting Coords are [%d] [%d] and My ending Coords are [%d] [%d]\n",rank, myCoords[0], myCoords[1], beginPos[0], beginPos[1], endPos[0], endPos[1]);
 
 
-    unsigned *myCurrentfield = calloc(w * h, sizeof(unsigned));
+    //w = w / size;
+
+    //int beginPos = myCoords[0] * w;
+    //int endPos = (myCoords[0] + 1) * w - 1;
+
+    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. Width is [%d] and Height is [%d]\n",rank, size, sourceProcess[0], destProcess[0], w, h);
+    //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. My first Coordinate is [%d] and my last Coordinate is [%d]\n",rank, size, sourceProcess[0], destProcess[0], beginPos, endPos);
+
+
+    //unsigned *myCurrentfield = calloc(w * h, sizeof(unsigned));
     //unsigned *myNewfield = calloc(myFieldSize, sizeof(unsigned));
 
 
-    filling(myCurrentfield, w, h);
-    int t = 0;
+    //filling(myCurrentfield, w, h);
+    //int t = 0;
     //for (int t = 0; t < timesteps; t++) {
     // TODO consol output
     //     show(currentfield, w, h);
-    writeVTK(myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords);
+    //writeVTK(myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords);
     /*
      int changes = evolve(currentfield, newfield, w, h, status, comm, rank, size);
      if (changes == 0) {
@@ -158,7 +175,7 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
      }
      */
 
-    free(myCurrentfield);
+    //free(myCurrentfield);
     //free(myNewfield);
 }
 
@@ -175,8 +192,8 @@ int main(int c, char **v) {
     if (c > 1) w = atoi(v[1]); ///< read width
     if (c > 2) h = atoi(v[2]); ///< read height
     if (c > 3) timesteps = atoi(v[3]);
-    if (w <= 0) w = 32; ///< default width
-    if (h <= 0) h = 40; ///< default height
+    if (w <= 0) w = 8; ///< default width
+    if (h <= 0) h = 8; ///< default height
 
     /*
      int length = w * h;

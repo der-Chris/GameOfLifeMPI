@@ -30,29 +30,31 @@ float convert2BigEndian( const float inFloat )
 
     return retVal;
 }
-
-void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Comm newComm, int rank, int size, int beginPos, int endPos, int *myCoords) {
+//myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH
+void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Comm newComm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
     char name[1024] = "\0";
     sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
     FILE* outfile = fopen(name, "w");
 
-    beginPos = beginPos == 0 ? 0 : beginPos - 1 * rank;
+    beginPos[0] = beginPos[0] == 0 ? 0 : beginPos[0] - 1 * myCoords[0];
+    beginPos[1] = beginPos[1] == 0 ? 0 : beginPos[1] - 1 * myCoords[1];
+
 
     /*Write vtk header */
     fprintf(outfile,"# vtk DataFile Version 3.0\n");
     fprintf(outfile,"frame %d\n", t);
     fprintf(outfile,"BINARY\n");
     fprintf(outfile,"DATASET STRUCTURED_POINTS\n");
-    fprintf(outfile,"DIMENSIONS %d %d %d \n", w, h, 1); //w h
+    fprintf(outfile,"DIMENSIONS %d %d %d \n", myW, myH, 1); //w h
     fprintf(outfile,"SPACING 1.0 1.0 1.0\n");//or ASPECT_RATIO
-    fprintf(outfile,"ORIGIN %d 0 0\n", beginPos); //x y z
-    fprintf(outfile,"POINT_DATA %d\n", w * h);
+    fprintf(outfile,"ORIGIN %d %d 0\n", beginPos[0], beginPos[1]); //x y z
+    fprintf(outfile,"POINT_DATA %d\n", myW * myH);
     fprintf(outfile,"SCALARS data float 1\n");
     fprintf(outfile,"LOOKUP_TABLE default\n");
 
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            float value = currentfield[calcIndex(w, x,y)]; // != 0.0 ? 1.0:0.0;
+    for (int y = 0; y < myH; y++) {
+        for (int x = 0; x < myW; x++) {
+            float value = currentfield[calcIndex(w, x,y)] != 0.0 ? 1.0:0.0;
             value = convert2BigEndian(value);
             fwrite(&value, 1, sizeof(float), outfile);
         }
@@ -137,10 +139,9 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     beginPos[1] = (w / (size / 2)) * myCoords[1];
     endPos[0] = ((h / 2) * (myCoords[0] + 1)) - 1;
     endPos[1] = ((w / (size / 2)) * (myCoords[1] + 1)) - 1;
+    int myW = w / (size / 2);
+    int myH = h / 2;
     printf("DEBUG: Thread No: [%d] My Cart Coords are [%d] [%d] My starting Coords are [%d] [%d] and My ending Coords are [%d] [%d]\n",rank, myCoords[0], myCoords[1], beginPos[0], beginPos[1], endPos[0], endPos[1]);
-
-
-    //w = w / size;
 
     //int beginPos = myCoords[0] * w;
     //int endPos = (myCoords[0] + 1) * w - 1;
@@ -149,16 +150,16 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     //printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]. My first Coordinate is [%d] and my last Coordinate is [%d]\n",rank, size, sourceProcess[0], destProcess[0], beginPos, endPos);
 
 
-    //unsigned *myCurrentfield = calloc(w * h, sizeof(unsigned));
-    //unsigned *myNewfield = calloc(myFieldSize, sizeof(unsigned));
+    unsigned *myCurrentfield = calloc(myW * myH, sizeof(unsigned));
+    unsigned *myNewfield = calloc(myW * myH, sizeof(unsigned));
 
 
-    //filling(myCurrentfield, w, h);
-    //int t = 0;
+    filling(myCurrentfield, myW, myH);
+    int t = 0;
     //for (int t = 0; t < timesteps; t++) {
     // TODO consol output
     //     show(currentfield, w, h);
-    //writeVTK(myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords);
+    writeVTK(myCurrentfield, w, h, t, "output", newComm, rank, size, beginPos, endPos, myCoords, myW, myH);
     /*
      int changes = evolve(currentfield, newfield, w, h, status, comm, rank, size);
      if (changes == 0) {
@@ -175,8 +176,8 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
      }
      */
 
-    //free(myCurrentfield);
-    //free(myNewfield);
+    free(myCurrentfield);
+    free(myNewfield);
 }
 
 int main(int c, char **v) {

@@ -94,17 +94,47 @@ int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status 
      */
     //TODO add game of life rules
 
+    //Send Upper Border
     int sendcount = myW;
     int *sendbuf = calloc(sendcount, sizeof(unsigned));;
+    MPI_Datatype sendtype = MPI_UNSIGNED;
+    int dest = (rank + 1) % size;
+    int sendtag = 1;
+    int recvcount = myW;
+    int *recvbuf = calloc(recvcount, sizeof(unsigned));
+    MPI_Datatype recvtype = MPI_UNSIGNED;
+    int source = (rank + size - 1) % size;
+    int recvtag = 1;
     for (int i = 0; i < myW; i = i + 1)
+    {
+        sendbuf[i] = currentfield[calcIndex(myW, i, myH - 1)];
+    }
+    MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, &status);
+    //Send Lower Border
+    dest = (rank + size - 1) % size;
+    recvbuf = calloc(recvcount, sizeof(unsigned));
+    source = (rank + 1) % size;
+    for (int i = 0; i < myW; i = i + 1)
+    {
+        sendbuf[i] = currentfield[calcIndex(myW, i, 0)];
+    }
+    MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, &status);
+    //printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
+    //printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, recvbuf[0], recvbuf[1], recvbuf[2], recvbuf[3]);
+
+
+/*
+    //Send Right and Left Border
+    sendcount = myH;
+    int *sendbuf = calloc(sendcount, sizeof(unsigned));;
+    for (int i = 0; i < myH; i = i + 1)
     {
         sendbuf[i] = currentfield[calcIndex(myW, i, myH - 1)];
     }
     MPI_Datatype sendtype = MPI_UNSIGNED;
     int dest = (rank + 1) % size;
     int sendtag = 1;
-    printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
-
+    //printf("DEBUG: Thread No: [%d] sending to [%d] and send [%d][%d][%d][%d]\n", rank, dest, sendbuf[0], sendbuf[1], sendbuf[2], sendbuf[3]);
 
     int recvcount = myW;
     int *recvbuf = calloc(recvcount, sizeof(unsigned));
@@ -112,8 +142,8 @@ int evolve(unsigned* currentfield, unsigned* newfield, int w, int h, MPI_Status 
     int source = (rank + size - 1) % size;
     int recvtag = 1;
     MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount, recvtype, source, recvtag, comm, &status);
-    printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, recvbuf[0], recvbuf[1], recvbuf[2], recvbuf[3]);
-
+    //printf("DEBUG: Thread No: [%d] received from [%d] and send [%d][%d][%d][%d]\n", rank, source, recvbuf[0], recvbuf[1], recvbuf[2], recvbuf[3]);
+*/
 
     //TODO if changes == 0, the time loop will not run!
     return changes;

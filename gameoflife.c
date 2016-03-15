@@ -229,20 +229,65 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
                 for(int x1 = x-1; x1 <= x+1; x1++) {
 
 
-                    if( x1 == -1 && y1 == -1 ){
-                        if(recvLowerLeftBorder[0]) alive++;
-                    } else if( x1 == myW && y1 == myW ){
-                        if(recvUpperRightBorder[0]) alive++;
-                    } else if( x1 == -1 ){
-                        if(recvLeftBorder[y1]) alive++;
-                    } else if( x1 == myW ){
-                        if(recvRightBorder[y1]) alive++;
-                    } else if( y1 == -1 ){
-                        if(recvLowerBorder[y1]) alive++;
-                    } else if( y1 == myH ){
-                        if(recvUpperBorder[y1]) alive++;
-                    } else {
-                        if(currentfield[calcIndex(w, x1, (y1 + h)%h)]){
+                    if( x1 == -1 && y1 == -1 )
+                    {
+                        if(recvUpperLeftBorder[0])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( x1 == myW && y1 == -1 )
+                    {
+                        if(recvUpperRightBorder[0])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( x1 == -1 && y1 == myH )
+                    {
+                        if(recvLowerLeftBorder[0])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( x1 == myW && y1 == myH )
+                    {
+                        if(recvLowerRightBorder[0])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( x1 == -1 )
+                    {
+                        if(recvLeftBorder[y1])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( x1 == myW )
+                    {
+                        if(recvRightBorder[y1])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( y1 == -1 )
+                    {
+                        if(recvUpperBorder[y1])
+                        {
+                            alive++;
+                        }
+                    }
+                    else if( y1 == myH )
+                    {
+                        if(recvLowerBorder[y1])
+                        {
+                            alive++;
+                        }
+                    }
+                    else {
+                        if(currentfield[calcIndex(myW, x1, y1)])
+                        {
                             alive++;
                         }
                     }
@@ -387,7 +432,7 @@ int main(int c, char **v) {
      printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
      */
     game(w, h, timesteps, status, comm, rank, size);
-    
+
     MPI_Finalize();
     return 0;
 }

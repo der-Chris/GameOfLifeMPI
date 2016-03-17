@@ -5,7 +5,7 @@
 #include <mpi.h>
 #include <time.h>
 
-#define calcIndex(width, x,y)  ((y)*(width) + (x))
+#define calcIndex(width, x,y)  ((y + 1)*(width + 2) + (x + 1))
 
 void show(unsigned* currentfield, int w, int h) {
     printf("\033[H");
@@ -110,11 +110,11 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *upperProcess
     free(queryCoords);
 }
 
-void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder) {
+void calculateOwnBorders(unsigned *currentfield, int myW, int myH, unsigned *sendUpperBorder, unsigned *sendLowerBorder, unsigned *sendRightBorder, unsigned *sendLeftBorder, unsigned *sendUpperRightBorder, unsigned *sendUpperLeftBorder, unsigned *sendLowerRightBorder, unsigned *sendLowerLeftBorder) {
     for (int i = 0; i < myW; i = i + 1)
     {
-        sendUpperBorder[i] = currentfield[calcIndex(myW, i, myH - 1)];
-        sendLowerBorder[i] = currentfield[calcIndex(myW, i, 0)];
+        sendUpperBorder = &currentfield[calcIndex(myW, i, myH - 1)];
+        sendLowerBorder = &currentfield[calcIndex(myW, i, 0)];
     }
 
     for (int i = 0; i < myH; i = i + 1)
@@ -123,13 +123,13 @@ void calculateOwnBorders(unsigned *currentfield, int myW, int myH, int *sendUppe
         sendLeftBorder[i] = currentfield[calcIndex(myW, 0, i)];
     }
 
-    sendUpperRightBorder[0] = currentfield[calcIndex(myW, myW - 1, myH -1)];
-    sendUpperLeftBorder[0] = currentfield[calcIndex(myW, 0, myH -1)];
-    sendLowerRightBorder[0] = currentfield[calcIndex(myW, myW - 1, 0)];
-    sendLowerLeftBorder[0] = currentfield[calcIndex(myW, 0, 0)];
+    sendUpperRightBorder = &currentfield[calcIndex(myW, myW - 1, myH -1)];
+    sendUpperLeftBorder = &currentfield[calcIndex(myW, 0, myH -1)];
+    sendLowerRightBorder = &currentfield[calcIndex(myW, myW - 1, 0)];
+    sendLowerLeftBorder = &currentfield[calcIndex(myW, 0, 0)];
 }
 
-void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Comm comm, int *sendUpperBorder, int *sendLowerBorder, int *sendRightBorder, int *sendLeftBorder, int *sendUpperRightBorder, int *sendUpperLeftBorder, int *sendLowerRightBorder, int *sendLowerLeftBorder, int *recvUpperBorder, int *recvLowerBorder, int *recvRightBorder, int *recvLeftBorder, int *recvUpperRightBorder, int *recvUpperLeftBorder, int *recvLowerRightBorder, int *recvLowerLeftBorder, int *upperProcess, int *lowerProcess, int *rightProcess, int *leftProcess, int *upperRightProcess, int *upperLeftProcess, int *lowerRightProcess, int *lowerLeftProcess) {
+void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Comm comm, unsigned *sendUpperBorder, unsigned *sendLowerBorder, unsigned *sendRightBorder, unsigned *sendLeftBorder, unsigned *sendUpperRightBorder, unsigned *sendUpperLeftBorder, unsigned *sendLowerRightBorder, unsigned *sendLowerLeftBorder, unsigned *recvUpperBorder, unsigned *recvLowerBorder, unsigned *recvRightBorder, unsigned *recvLeftBorder, unsigned *recvUpperRightBorder, unsigned *recvUpperLeftBorder, unsigned *recvLowerRightBorder, unsigned *recvLowerLeftBorder, int *upperProcess, int *lowerProcess, int *rightProcess, int *leftProcess, int *upperRightProcess, int *upperLeftProcess, int *lowerRightProcess, int *lowerLeftProcess) {
     MPI_Status status;
 
     //Send Upper Border -> receive lower Border
@@ -181,7 +181,7 @@ void calculateNeighbourBorders(unsigned *currentfield, int myW, int myH, MPI_Com
     MPI_Sendrecv(sendLowerLeftBorder, sendcount, sendtype, dest, sendtag, sendLowerRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
 }
 
-int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH, int *recvUpperBorder, int *recvLowerBorder, int *recvRightBorder, int *recvLeftBorder, int *recvUpperRightBorder, int *recvUpperLeftBorder, int *recvLowerRightBorder, int *recvLowerLeftBorder)
+int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH, unsigned *recvUpperBorder, unsigned *recvLowerBorder, unsigned *recvRightBorder, unsigned *recvLeftBorder, unsigned *recvUpperRightBorder, unsigned *recvUpperLeftBorder, unsigned *recvLowerRightBorder, unsigned *recvLowerLeftBorder)
 {
     int changes = 0;
     for (int y = 0; y < myH; y++) {
@@ -190,42 +190,8 @@ int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH, int 
             //for schleifen ersetzen durch 8 statische berechnungen?
             for(int y1 = y-1; y1 <= y+1; y1++) {
                 for(int x1 = x-1; x1 <= x+1; x1++) {
-                    if( x1 == -1 && y1 == myH ) {
-                        if(recvUpperLeftBorder[0]) {
-                            alive++;
-                        }
-                    } else if( x1 == myW && y1 == myH ) {
-                        if(recvUpperRightBorder[0]) {
-                            alive++;
-                        }
-                    } else if( x1 == -1 && y1 == -1 ) {
-                        if(recvLowerLeftBorder[0]) {
-                            alive++;
-                        }
-                    } else if( x1 == myW && y1 == -1 ) {
-                        if(recvLowerRightBorder[0]) {
-                            alive++;
-                        }
-                    } else if( x1 == -1 ) {
-                        if(recvLeftBorder[y1]) {
-                            alive++;
-                        }
-                    } else if( x1 == myW ) {
-                        if(recvRightBorder[y1]) {
-                            alive++;
-                        }
-                    } else if( y1 == myH ) {
-                        if(recvUpperBorder[x1]) {
-                            alive++;
-                        }
-                    } else if( y1 == -1 ) {
-                        if(recvLowerBorder[x1]) {
-                            alive++;
-                        }
-                    } else {
-                        if(currentfield[calcIndex(myW, x1, y1)]) {
-                            alive++;
-                        }
+                    if(currentfield[calcIndex(myW, x1, y1)]) {
+                        alive++;
                     }
                 }
             }
@@ -242,27 +208,47 @@ int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH, int 
     return changes;
 }
 
+void mergeBorders(unsigned *currentfield, int myW, int myH, unsigned *recvUpperBorder, unsigned *recvLowerBorder, unsigned *recvRightBorder, unsigned *recvLeftBorder, unsigned *recvUpperRightBorder, unsigned *recvUpperLeftBorder, unsigned *recvLowerRightBorder, unsigned *recvLowerLeftBorder) {
+
+    for (int i = 0; i < myW; i = i + 1)
+    {
+        currentfield[calcIndex(myW, i, myH)] = recvUpperBorder[i];
+        currentfield[calcIndex(myW, i, -1)] = recvLowerBorder[i];
+    }
+
+    for (int i = 0; i < myH; i = i + 1)
+    {
+        currentfield[calcIndex(myW, myW, i)] = recvRightBorder[i];
+        currentfield[calcIndex(myW, -1, i)] = recvLeftBorder[i];
+    }
+
+    currentfield[calcIndex(myW, myW, myH)] = recvUpperRightBorder[0];
+    currentfield[calcIndex(myW, -1, myH)] = recvUpperLeftBorder[0];
+    currentfield[calcIndex(myW, myW, -1)] = recvLowerRightBorder[0];
+    currentfield[calcIndex(myW, -1, -1)] = recvLowerLeftBorder[0];
+}
+
 
 int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status status, MPI_Comm comm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
     int changes = 0;
 
-    int *sendUpperBorder = calloc(myW, sizeof(unsigned));
-    int *sendLowerBorder = calloc(myW, sizeof(unsigned));
-    int *sendRightBorder = calloc(myH, sizeof(unsigned));
-    int *sendLeftBorder = calloc(myH, sizeof(unsigned));
-    int *sendUpperRightBorder = calloc(1, sizeof(unsigned));
-    int *sendUpperLeftBorder = calloc(1, sizeof(unsigned));
-    int *sendLowerRightBorder = calloc(1, sizeof(unsigned));
-    int *sendLowerLeftBorder = calloc(1, sizeof(unsigned));
+    unsigned *sendUpperBorder = calloc(myW, sizeof(unsigned));
+    unsigned *sendLowerBorder = calloc(myW, sizeof(unsigned));
+    unsigned *sendRightBorder = calloc(myH, sizeof(unsigned));
+    unsigned *sendLeftBorder = calloc(myH, sizeof(unsigned));
+    unsigned *sendUpperRightBorder = calloc(1, sizeof(unsigned));
+    unsigned *sendUpperLeftBorder = calloc(1, sizeof(unsigned));
+    unsigned *sendLowerRightBorder = calloc(1, sizeof(unsigned));
+    unsigned *sendLowerLeftBorder = calloc(1, sizeof(unsigned));
 
-    int *recvLowerBorder = calloc(myW, sizeof(unsigned));
-    int *recvUpperBorder = calloc(myW, sizeof(unsigned));
-    int *recvRightBorder = calloc(myH, sizeof(unsigned));
-    int *recvLeftBorder = calloc(myH, sizeof(unsigned));
-    int *recvUpperRightBorder = calloc(1, sizeof(unsigned));
-    int *recvUpperLeftBorder = calloc(1, sizeof(unsigned));
-    int *recvLowerRightBorder = calloc(1, sizeof(unsigned));
-    int *recvLowerLeftBorder = calloc(1, sizeof(unsigned));
+    unsigned *recvLowerBorder = calloc(myW, sizeof(unsigned));
+    unsigned *recvUpperBorder = calloc(myW, sizeof(unsigned));
+    unsigned *recvRightBorder = calloc(myH, sizeof(unsigned));
+    unsigned *recvLeftBorder = calloc(myH, sizeof(unsigned));
+    unsigned *recvUpperRightBorder = calloc(1, sizeof(unsigned));
+    unsigned *recvUpperLeftBorder = calloc(1, sizeof(unsigned));
+    unsigned *recvLowerRightBorder = calloc(1, sizeof(unsigned));
+    unsigned *recvLowerLeftBorder = calloc(1, sizeof(unsigned));
 
     int *upperProcess = calloc (1, sizeof(int));
     int *lowerProcess = calloc (1, sizeof(int));
@@ -278,6 +264,8 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
     calculateOwnBorders(currentfield, myW, myH, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder);
 
     calculateNeighbourBorders(currentfield, myW, myH, comm, sendUpperBorder, sendLowerBorder, sendRightBorder, sendLeftBorder, sendUpperRightBorder, sendUpperLeftBorder, sendLowerRightBorder, sendLowerLeftBorder, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder, upperProcess, lowerProcess, rightProcess, leftProcess, upperRightProcess, upperLeftProcess, lowerRightProcess, lowerLeftProcess);
+
+    mergeBorders(currentfield, myW, myH, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder);
 
     changes = calcAlive(currentfield, newfield, myW, myH, recvUpperBorder, recvLowerBorder, recvRightBorder, recvLeftBorder, recvUpperRightBorder, recvUpperLeftBorder, recvLowerRightBorder, recvLowerLeftBorder);
 
@@ -315,8 +303,10 @@ int evolve(unsigned *currentfield, unsigned *newfield, int w, int h, MPI_Status 
 void filling(unsigned* currentfield, int w, int h, int rank) {
     clock_t t = time(NULL);
     srand((int) t * rank);
-    for (int i = 0; i < h*w; i++) {
-        currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            currentfield[calcIndex(w, x, y)] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
+        }
     }
 }
 
@@ -346,8 +336,8 @@ void game(int w, int h, int timesteps, MPI_Status status, MPI_Comm comm, int ran
     int myH = h / 2;
     //printf("DEBUG: Thread No: [%d] My Cart Coords are [%d] [%d] My starting Coords are [%d] [%d] and My ending Coords are [%d] [%d]\n",rank, myCoords[0], myCoords[1], beginPos[0], beginPos[1], endPos[0], endPos[1]);
 
-    unsigned *currentfield = calloc(myW * myH, sizeof(unsigned));
-    unsigned *newfield = calloc(myW * myH, sizeof(unsigned));
+    unsigned *currentfield = calloc((myW + 2) * (myH + 2), sizeof(unsigned));
+    unsigned *newfield = calloc((myW + 2) * (myH + 2), sizeof(unsigned));
 
     filling(currentfield, myW, myH, rank);
 
@@ -392,7 +382,7 @@ int main(int c, char **v) {
     if (w <= 0) w = 1000; ///< default width
     if (h <= 0) h = 1000; ///< default height
 
-//    printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
+    //    printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
     game(w, h, timesteps, status, comm, rank, size);
     
     MPI_Finalize();

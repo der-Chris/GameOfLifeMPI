@@ -5,7 +5,7 @@
 #include <mpi.h>
 #include <time.h>
 
-#define calcIndex(width, x,y)  ((y)*(width) + (x))
+#define calcIndex(width, x,y)  ((y + 1)*(width + 2) + (x + 1))
 
 void show(unsigned* currentfield, int w, int h) {
     printf("\033[H");
@@ -62,57 +62,6 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     fclose(outfile);
 }
 
-int getNumberOfAliveCells(unsigned *currentfield, int x, int y) {
-    int alive  = 0
-    for(int y1 = y-1; y1 <= y+1; y1++) {
-        for(int x1 = x-1; x1 <= x+1; x1++) {
-            if( -1 == x1 ){
-                alive += leftborder[y1];
-            } else if( w == x1 ){
-                alive += rightborder[y1];
-            } else {
-                alive += currentfield[calcIndex(w, x1, (y1 + h)%h)];
-            }
-        }
-    }
-    alive -= currentfield[calcIndex(w, x,y)];
-    return alive;
-
-}
-
-int evolve(unsigned* currentfield, unsigned* newfield, int w, int h) {
-    int changes = 0;
-
-    unsigned *leftborder = calloc(h, sizeof(unsigned));
-    unsigned *rightborder = calloc(h, sizeof(unsigned));
-
-
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            int numberOfAliveCells = getNumberOfAliveCells(currentfield, w, h, x, y);
-            int currentfieldValue = currentfield[calcIndex(w, x,y)];
-            //Dead Field and 3 Living Fields -> resurrect Field       //Living Field with 2 or 3 living neighbours stays alive
-            newfield[calcIndex(w, x,y)] = ((!currentfieldValue && numberOfAliveCells == 3) || (currentfieldValue && (numberOfAliveCells == 3 || numberOfAliveCells == 4)));
-            if (newfield[calcIndex(w, x,y)] != currentfield[calcIndex(w, x,y)])
-            {
-                changed = 1;
-            }
-
-        }
-    }
-
-    //TODO if changes == 0, the time loop will not run!
-    return changes;
-}
-
-void filling(unsigned* currentfield, int w, int h, int rank) {
-    clock_t t = time(NULL);
-    srand((int) t * rank);
-    for (int i = 0; i < h*w; i++) {
-        currentfield[i] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
-    }
-}
-
 void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *rightProcess, int *leftProcess)
 {
     int *queryCoords = calloc(2, sizeof(unsigned));
@@ -128,10 +77,123 @@ void calculateNeighbourProcesses(int *myCoords, MPI_Comm comm, int *rightProcess
     free(queryCoords);
 }
 
+void calculateOwnBorders(unsigned *currentfield, int myW, int myH, unsigned *sendRightBorder, unsigned *sendLeftBorder) {
+    for (int i = 0; i < myH; i = i + 1)
+    {
+        sendRightBorder[i] = currentfield[calcIndex(myW, myW - 1, i)];
+        sendLeftBorder[i] = currentfield[calcIndex(myW, 0, i)];
+    }
+}
+
+void calculateNeighbourBorders(unsigned *currentfield, int w, int h, MPI_Comm comm, unsigned *sendRightBorder, unsigned *sendLeftBorder, unsigned *recvRightBorder, unsigned *recvLeftBorder, int *rightProcess, int *leftProcess) {
+
+    MPI_Status status;
+
+    //Send Upper Border -> receive lower Border
+    MPI_Datatype sendtype = MPI_UNSIGNED;
+    int sendtag = 1;
+    int recvtag = 1;
+    MPI_Datatype recvtype = MPI_UNSIGNED;
+    //Send Lower Border -> receive Upper Border
+
+    //Send Right Border -> receive Left Border
+    int sendcount = h;
+    int dest = rightProcess[0];
+    int recvcount = h;
+    int source = leftProcess[0];
+    MPI_Sendrecv(sendRightBorder, sendcount, sendtype, dest, sendtag, recvLeftBorder, recvcount, recvtype, source, recvtag, comm, &status);
+    //Send Left Border -> receive Right Border
+    dest = leftProcess[0];
+    source = rightProcess[0];
+    MPI_Sendrecv(sendLeftBorder, sendcount, sendtype, dest, sendtag, recvRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
+
+    printf("here2\n");
+}
+
+int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH)
+{
+    int changes = 0;
+    for (int y = 0; y < myH; y++) {
+        for (int x = 0; x < myW; x++) {
+            int alive = 0;
+            //for schleifen ersetzen durch 8 statische berechnungen?
+            for(int y1 = y-1; y1 <= y+1; y1++) {
+                for(int x1 = x-1; x1 <= x+1; x1++) {
+                    if(currentfield[calcIndex(myW, x1, y1)]) {
+                        alive++;
+                    }
+                }
+            }
+
+            //remove inner cell value
+            alive -= currentfield[calcIndex(myW, x,y)];
+            newfield[calcIndex(myW, x,y)] = (alive == 3 || (alive == 2 && currentfield[calcIndex(myW, x,y)]));
+            if(currentfield[calcIndex(myW, x,y)] != newfield[calcIndex(myW, x,y)])
+            {
+                changes = 1;
+            }
+        }
+    }
+    return changes;
+}
+
+void mergeBorders(unsigned *currentfield, int myW, int myH, unsigned *recvRightBorder, unsigned *recvLeftBorder) {
+    for (int i = 0; i < myH; i = i + 1)
+    {
+        currentfield[calcIndex(myW, myW, i)] = recvRightBorder[i];
+        currentfield[calcIndex(myW, -1, i)] = recvLeftBorder[i];
+    }
+}
+
+int evolve(unsigned *currentfield, unsigned *newfield, MPI_Status status, MPI_Comm comm, int rank, int size, int *myCoords, int w, int h) {
+    int changes = 0;
+
+    unsigned *sendRightBorder = calloc(h, sizeof(unsigned));
+    unsigned *sendLeftBorder = calloc(h, sizeof(unsigned));
+
+    unsigned *recvRightBorder = calloc(h, sizeof(unsigned));
+    unsigned *recvLeftBorder = calloc(h, sizeof(unsigned));
+
+    int *rightProcess = calloc (1, sizeof(int));
+    int *leftProcess = calloc (1, sizeof(int));
+
+    calculateNeighbourProcesses(myCoords, comm, rightProcess, leftProcess);
+
+    calculateOwnBorders(currentfield, w, h, sendRightBorder, sendLeftBorder);
+
+    calculateNeighbourBorders(currentfield, w, h, comm, sendRightBorder, sendLeftBorder, recvRightBorder, recvLeftBorder, rightProcess, leftProcess);
+
+    mergeBorders(currentfield, w, h, recvRightBorder, recvLeftBorder);
+
+    changes = calcAlive(currentfield, newfield, w, h);
+
+    free(sendRightBorder);
+    free(sendLeftBorder);
+
+    free(recvRightBorder);
+    free(recvLeftBorder);
+
+    free(rightProcess);
+    free(leftProcess);
+
+    //TODO if changes == 0, the time loop will not run!
+    return changes;
+}
+
+void filling(unsigned* currentfield, int w, int h, int rank) {
+    clock_t t = time(NULL);
+    srand((int) t * rank);
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            currentfield[calcIndex(w, x, y)] = (rand() < RAND_MAX / 10) ? 1 : 0; ///< init domain randomly
+        }
+    }
+}
+
 void game(int w, int h, int timesteps, int rank, int size, MPI_Comm comm, MPI_Status status) {
     w = w / size;
-    unsigned *currentfield = calloc(w*h, sizeof(unsigned));
-    unsigned *newfield     = calloc(w*h, sizeof(unsigned));
+    unsigned *currentfield = calloc((w + 2) * (h + 2), sizeof(unsigned));
+    unsigned *newfield = calloc((w + 2) * (h + 2), sizeof(unsigned));
 
     MPI_Comm newComm;
     int ndims = 2;
@@ -147,39 +209,28 @@ void game(int w, int h, int timesteps, int rank, int size, MPI_Comm comm, MPI_St
     int *myCoords = calloc(ndims, sizeof(int));
     MPI_Cart_coords(newComm, rank, ndims, myCoords);
 
-    int *rightProcess = calloc (1, sizeof(int));
-    int *leftProcess = calloc (1, sizeof(int));
-
-    calculateNeighbourProcesses(myCoords, newComm, rightProcess, leftProcess);
-
     //printf("DEBUG: Hello, my ID is [%d],  my right neighbours ID is [%d] my left neighbours ID is [%d]\n", rank, rightProcess[0], leftProcess[0]);
-    printf("DEBUG: Hello, my ID is [%d],  my field is %dX%d\n", w, h);
+    printf("DEBUG: Hello, my ID is [%d],  my field is %dX%d\n", rank, w, h);
 
     filling(currentfield, w, h, rank);
 
-    //     for (int t = 0; t < timesteps; t++) {
-    int t = 0;
-    writeVTK(currentfield, w, h, t, "output", newComm, rank, size, myCoords);
-    int changes = evolve(currentfield, newfield, w, h);
-    if (changes == 0) {
-        sleep(3);
-        break;
+    for (int t = 0; t < timesteps; t++) {
+        int t = 0;
+        writeVTK(currentfield, w, h, t, "output", newComm, rank, size, myCoords);
+        int changes = evolve(currentfield, newfield, status, newComm, rank, size, myCoords, w, h);
+        if (changes == 0) {
+            sleep(3);
+            //break;
+        }
+
+        //SWAP
+        unsigned *temp = currentfield;
+        currentfield = newfield;
+        newfield = temp;
     }
 
-    // usleep(200000);
-
-    //SWAP
-    unsigned *temp = currentfield;
-    currentfield = newfield;
-    newfield = temp;
-}
-*/
-
-free(rightProcess);
-free(leftProcess);
-
-free(currentfield);
-free(newfield);
+    free(currentfield);
+    free(newfield);
 }
 
 int main(int c, char **v) {

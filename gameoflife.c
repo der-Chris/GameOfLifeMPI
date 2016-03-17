@@ -62,26 +62,45 @@ void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Com
     fclose(outfile);
 }
 
+int getNumberOfAliveCells(unsigned *currentfield, int x, int y) {
+    int alive  = 0
+    for(int y1 = y-1; y1 <= y+1; y1++) {
+        for(int x1 = x-1; x1 <= x+1; x1++) {
+            if( -1 == x1 ){
+                alive += leftborder[y1];
+            } else if( w == x1 ){
+                alive += rightborder[y1];
+            } else {
+                alive += currentfield[calcIndex(w, x1, (y1 + h)%h)];
+            }
+        }
+    }
+    alive -= currentfield[calcIndex(w, x,y)];
+    return alive;
+
+}
 
 int evolve(unsigned* currentfield, unsigned* newfield, int w, int h) {
     int changes = 0;
 
+    unsigned *leftborder = calloc(h, sizeof(unsigned));
+    unsigned *rightborder = calloc(h, sizeof(unsigned));
 
-    /*
-     for (int y = 0; y < h; y++) {
-     for (int x = 0; x < w; x++) {
-     int numberOfAliveCells = getNumberOfAliveCells(currentfield, w, h, x, y);
-     int currentfieldValue = currentfield[calcIndex(w, x,y)];
-     //Dead Field and 3 Living Fields -> resurrect Field       //Living Field with 2 or 3 living neighbours stays alive
-     newfield[calcIndex(w, x,y)] = ((!currentfieldValue && numberOfAliveCells == 3) || (currentfieldValue && (numberOfAliveCells == 3 || numberOfAliveCells == 4)));
-     if (newfield[calcIndex(w, x,y)] != currentfield[calcIndex(w, x,y)])
-     {
-     changed = 1;
-     }
 
-     }
-     }
-     */
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            int numberOfAliveCells = getNumberOfAliveCells(currentfield, w, h, x, y);
+            int currentfieldValue = currentfield[calcIndex(w, x,y)];
+            //Dead Field and 3 Living Fields -> resurrect Field       //Living Field with 2 or 3 living neighbours stays alive
+            newfield[calcIndex(w, x,y)] = ((!currentfieldValue && numberOfAliveCells == 3) || (currentfieldValue && (numberOfAliveCells == 3 || numberOfAliveCells == 4)));
+            if (newfield[calcIndex(w, x,y)] != currentfield[calcIndex(w, x,y)])
+            {
+                changed = 1;
+            }
+
+        }
+    }
+
     //TODO if changes == 0, the time loop will not run!
     return changes;
 }
@@ -133,34 +152,34 @@ void game(int w, int h, int timesteps, int rank, int size, MPI_Comm comm, MPI_St
 
     calculateNeighbourProcesses(myCoords, newComm, rightProcess, leftProcess);
 
-    printf("DEBUG: Hello, my ID is [%d],  my right neighbours ID is [%d] my left neighbours ID is [%d]\n", rank, rightProcess[0], leftProcess[0]);
+    //printf("DEBUG: Hello, my ID is [%d],  my right neighbours ID is [%d] my left neighbours ID is [%d]\n", rank, rightProcess[0], leftProcess[0]);
+    printf("DEBUG: Hello, my ID is [%d],  my field is %dX%d\n", w, h);
 
     filling(currentfield, w, h, rank);
 
     //     for (int t = 0; t < timesteps; t++) {
     int t = 0;
     writeVTK(currentfield, w, h, t, "output", newComm, rank, size, myCoords);
-    /*
-     int changes = evolve(currentfield, newfield, w, h);
-     if (changes == 0) {
-     sleep(3);
-     break;
-     }
+    int changes = evolve(currentfield, newfield, w, h);
+    if (changes == 0) {
+        sleep(3);
+        break;
+    }
 
-     // usleep(200000);
+    // usleep(200000);
 
-     //SWAP
-     unsigned *temp = currentfield;
-     currentfield = newfield;
-     newfield = temp;
-     }
-     */
+    //SWAP
+    unsigned *temp = currentfield;
+    currentfield = newfield;
+    newfield = temp;
+}
+*/
 
-    free(rightProcess);
-    free(leftProcess);
+free(rightProcess);
+free(leftProcess);
 
-    free(currentfield);
-    free(newfield);
+free(currentfield);
+free(newfield);
 }
 
 int main(int c, char **v) {

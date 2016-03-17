@@ -106,8 +106,6 @@ void calculateNeighbourBorders(unsigned *currentfield, int w, int h, MPI_Comm co
     dest = leftProcess[0];
     source = rightProcess[0];
     MPI_Sendrecv(sendLeftBorder, sendcount, sendtype, dest, sendtag, recvRightBorder, recvcount, recvtype, source, recvtag, comm, &status);
-
-    printf("here2\n");
 }
 
 int calcAlive(unsigned *currentfield, unsigned *newfield, int myW, int myH)
@@ -218,9 +216,13 @@ void game(int w, int h, int timesteps, int rank, int size, MPI_Comm comm, MPI_St
         int t = 0;
         writeVTK(currentfield, w, h, t, "output", newComm, rank, size, myCoords);
         int changes = evolve(currentfield, newfield, status, newComm, rank, size, myCoords, w, h);
-        if (changes == 0) {
+        int allchanges = changes;
+        // printf("Changes of Thread %d is %d\n", rank, changes);
+        MPI_Allreduce(&changes, &allchanges, 1, MPI_INT, MPI_SUM, comm);
+        // printf("Changes of all Threads is %d\n", allchanges);
+        if (allchanges == 0) {
             sleep(3);
-            //break;
+            break;
         }
 
         //SWAP

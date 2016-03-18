@@ -4,6 +4,7 @@
 #include <endian.h>
 #include <mpi.h>
 #include <time.h>
+#include <string.h>
 
 #define calcIndex(width, x,y)  ((y + 1)*(width + 2) + (x + 1))
 
@@ -32,33 +33,54 @@ float convert2BigEndian( const float inFloat )
 }
 
 void writeVTK(unsigned* currentfield, int w, int h, int t, char* prefix, MPI_Comm newComm, int rank, int size, int *beginPos, int *endPos, int *myCoords, int myW, int myH) {
+    MPI_Status status;
+    MPI_File fhw;
     char name[1024] = "\0";
-    sprintf(name, "out/%s_%d_%d.vtk", prefix, rank, t);
-    FILE *outfile = fopen(name, "w");
 
-    int tempy = (myH - 1) * myCoords[0];
-    int tempx = (myW - 1) * myCoords[1];
+    char header[200] = "# vtk DataFile Version 3.0\n";
+    char tempString[100];
+    sprintf(tempString, "frame %d\n", t);
+    strcat(header, tempString);
+    strcat(header, "BINARY\n");
+    strcat(header, "DATASET STRUCTURED_POINTS\n");
+    sprintf(tempString, "DIMENSIONS %d %d %d \n", h, w, 1); //w h
+    strcat(header, tempString);
+    strcat(header, "SPACING 1.0 1.0 1.0\n");
+    sprintf(tempString, "ORIGIN %d %d 0\n", 0, 0); //x y z
+    strcat(header, tempString);
+    sprintf(tempString, "POINT_DATA %d\n", w * h);
+    strcat(header, tempString);
+    strcat(header, "SCALARS data float 1\n");
+    strcat(header, "LOOKUP_TABLE default\n");
 
-    /*Write vtk header */
-    fprintf(outfile,"# vtk DataFile Version 3.0\n");
-    fprintf(outfile,"frame %d\n", t);
-    fprintf(outfile,"BINARY\n");
-    fprintf(outfile,"DATASET STRUCTURED_POINTS\n");
-    fprintf(outfile,"DIMENSIONS %d %d %d \n", myW, myH, 1); //w h
-    fprintf(outfile,"SPACING 1.0 1.0 1.0\n");//or ASPECT_RATIO
-    fprintf(outfile,"ORIGIN %d %d 0\n", tempx, tempy); //x y z
-    fprintf(outfile,"POINT_DATA %d\n", myW * myH);
-    fprintf(outfile,"SCALARS data float 1\n");
-    fprintf(outfile,"LOOKUP_TABLE default\n");
+    int headerSize = strlen(header);
 
+
+    sprintf(name, "out/%s_%d.vtk", prefix, t);
+    MPI_File_open(MPI_COMM_WORLD, name, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fhw);
+
+    float *values = calloc(myH*myW, sizeof(float));
+
+    int offset = 0;
+    if (rank == 0)
+    {
+        MPI_File_write_at(fhw, offset, &header, headerSize, MPI_BYTE, &status);
+        offset = headerSize;
+
+        MPI_File_write_at(fhw, offset, values, myH * myW * sizeof(float), MPI_BYTE, &status);
+    } else
+    {
+        offset = headerSize + (rank * (myW * myH * sizeof(float)));
+    }
     for (int y = 0; y < myH; y++) {
         for (int x = 0; x < myW; x++) {
             float value = currentfield[calcIndex(myW, x,y)]; //!= 0.0 ? 1.0:0.0;
-            value = convert2BigEndian(value);
-            fwrite(&value, 1, sizeof(float), outfile);
+            values[(y * myW) + x] = convert2BigEndian(value);
         }
     }
-    fclose(outfile);
+
+    MPI_File_write_at(fhw, offset, values, myH * myW * sizeof(float), MPI_BYTE, &status);
+    MPI_File_close(&fhw);
 }
 
 int getNumberOfAliveCells(unsigned* currentfield, int w, int h, int x, int y) {
@@ -375,13 +397,13 @@ int main(int c, char **v) {
     MPI_Comm_size(comm, &size);
     MPI_Comm_rank(comm, &rank);
 
-    int w = 0, h = 0, timesteps = 400;
+    int w = 0, h = 0, timesteps = 1;
     if (c > 1) w = atoi(v[1]); ///< read width
     if (c > 2) h = atoi(v[2]); ///< read height
     if (c > 3) timesteps = atoi(v[3]);
-    if (w <= 0) w = 1000; ///< default width
-    if (h <= 0) h = 1000; ///< default height
-
+    if (w <= 0) w = 50; ///< default width
+    if (h <= 0) h = 50; ///< default height
+    
     //    printf("DEBUG: Thread No: [%d] Thread Size: [%d] My Neighbours are: [%d] and: [%d]\n",rank, size, negNeighbour, posNeighbour);#
     game(w, h, timesteps, status, comm, rank, size);
     
